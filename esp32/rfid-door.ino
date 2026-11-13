@@ -2,6 +2,7 @@
 #include <MFRC522.h>
 #include <ESP32Servo.h>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 
 #include "config.h"
@@ -135,7 +136,8 @@ void sendAccessEvent(bool granted, const String& uid) {
     return;
   }
 
-  WiFiClient client;
+  WiFiClientSecure client;
+  client.setInsecure();
   HTTPClient http;
 
   if (!http.begin(client, ACCESS_EVENTS_API_URL)) {
