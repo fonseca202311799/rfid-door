@@ -1,2 +1,7 @@
 .next/
 node_modules/
+.env*
+!.env.example
+esp32/config.h
+*firebase-adminsdk*.json
+tsconfig.tsbuildinfo

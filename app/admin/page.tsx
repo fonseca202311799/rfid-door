@@ -8,10 +8,14 @@ const SESSION_KEY = "rfid-admin-session";
 const EXIT_MS = 700;
 type Card = { uid: string; name: string; active: boolean };
 type LogEntry = { id: string; time: Date; uid: string; who: string; granted: boolean };
+type AccessEvent = {
+  id: string;
+  uid: string;
+  granted: boolean;
+  timestamp: string | null;
+};
 const seedCards: Card[] = [
-  { uid: "04A1B2C3", name: "Maria Santos", active: true },
-  { uid: "04D4E5F6", name: "Juan dela Cruz", active: true },
-  { uid: "04778899", name: "Old contractor badge", active: false },
+  { uid: "2C:D2:16:49", name: "Blue key fob", active: true },
 ];
 
 const initials = (name: string) =>
@@ -26,18 +30,32 @@ export default function AdminPage() {
   const [confirming, setConfirming] = useState(false); // 🆕
   const [cards, setCards] = useState<Card[]>(seedCards);
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [syncError, setSyncError] = useState("");
   const timer = useRef<number>(0);
 
-  const sync = () => {
+  const sync = async () => {
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
-      setCards(saved.cards ?? seedCards);
-      setLogs((saved.log ?? []).map((entry: Omit<LogEntry, "time"> & { time: string }) => ({
-        ...entry,
-        time: new Date(entry.time),
-      })));
+      setCards(seedCards);
+
+      const response = await fetch("/api/access-events", { cache: "no-store" });
+      if (!response.ok) throw new Error(`Access event request failed (${response.status}).`);
+
+      const data = await response.json() as { events?: AccessEvent[] };
+      setLogs((data.events ?? []).flatMap((event) => {
+        if (!event.timestamp) return [];
+        return [{
+          id: event.id,
+          time: new Date(event.timestamp),
+          uid: event.uid,
+          who: event.granted ? "Authorized card" : "Unauthorized card",
+          granted: event.granted,
+        }];
+      }));
+      setSyncError("");
     } catch (error) {
       console.warn("Unable to refresh dashboard state.", error);
+      setSyncError("Unable to load Firestore access events.");
     }
   };
 
@@ -46,9 +64,9 @@ export default function AdminPage() {
       router.replace("/admin/login");
       return;
     }
-    sync();
+    void sync();
     setReady(true);
-    const interval = window.setInterval(sync, 2000);
+    const interval = window.setInterval(() => void sync(), 2000);
     return () => {
       window.clearInterval(interval);
       window.clearTimeout(timer.current);
@@ -151,6 +169,7 @@ export default function AdminPage() {
             <h2>Recent activity</h2>
             <span className="muted">{logs.length} events</span>
           </div>
+          {syncError && <p className="error">{syncError}</p>}
           {logs.length === 0 ? (
             <div className="empty">
               <strong>No scans yet</strong>
@@ -158,7 +177,7 @@ export default function AdminPage() {
             </div>
           ) : (
             <ul className="log">
-              {logs.slice(0, 12).map((entry) => (
+              {logs.slice(0, 100).map((entry) => (
                 <li key={entry.id} className={`${entry.granted ? "granted" : "denied"} ad-row`}>
                   <div className="who">
                     <div>

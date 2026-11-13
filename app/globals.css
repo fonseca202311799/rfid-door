@@ -328,6 +328,11 @@ li .who > div { display: flex; flex-direction: column; min-width: 0; }
 .pill.off { background: var(--off-bg); color: var(--off); }
 
 /* Activity rows get a status rail */
+.log {
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
 .log li { position: relative; padding-left: 18px; }
 .log li::before {
   content: "";
