@@ -5,7 +5,7 @@ import { getFirebaseFirestore } from "../../../lib/firebase-admin";
 
 const collectionName = () => process.env.FIRESTORE_DEVICE_STATUS_COLLECTION || "deviceStatus";
 const onlineWindowMs = 90_000;
-const cacheDurationMs = 15_000;
+const cacheDurationMs = 3_000;
 let cachedStatus: {
   deviceId: unknown;
   doorOpen: boolean;
