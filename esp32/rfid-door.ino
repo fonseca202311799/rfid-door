@@ -43,7 +43,7 @@ const byte AUTHORIZED_UID_SIZE = sizeof(AUTHORIZED_UID);
 const int LOCKED_ANGLE = 0;
 const int UNLOCKED_ANGLE = 90;
 const unsigned long UNLOCK_TIME_MS = 4000;
-const unsigned long STATUS_INTERVAL_MS = 30000;
+const unsigned long STATUS_INTERVAL_MS = 15000;
 
 MFRC522 rfid(RFID_SS, RFID_RST);
 Servo doorServo;
@@ -211,6 +211,13 @@ void sendDeviceStatus() {
   const int responseCode = http.POST(payload);
   Serial.print("Device status response code: ");
   Serial.println(responseCode);
+  if (responseCode > 0) {
+    Serial.print("Device status response: ");
+    Serial.println(http.getString());
+  } else {
+    Serial.print("Device status request failed: ");
+    Serial.println(http.errorToString(responseCode));
+  }
   http.end();
 }
 
@@ -260,6 +267,7 @@ void loop() {
     doorIsOpen = false;
     digitalWrite(GREEN_LED, LOW);
     Serial.println("AUTO-LOCK: Door locked again.");
+    sendDeviceStatus();
   }
 
   if (!rfid.PICC_IsNewCardPresent()) {
@@ -290,6 +298,7 @@ void loop() {
     doorIsOpen = true;
     doorOpenedAt = millis();
     beep(1800, 120);
+    sendDeviceStatus();
     Serial.println("Sending authorized access event...");
     sendAccessEvent(true, uid);
   } else {
