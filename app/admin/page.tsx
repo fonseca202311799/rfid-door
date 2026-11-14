@@ -86,7 +86,7 @@ export default function AdminPage() {
     }
     void sync();
     setReady(true);
-    const interval = window.setInterval(() => void sync(), 30000);
+    const interval = window.setInterval(() => void sync(), 3000);
     return () => {
       window.clearInterval(interval);
       window.clearTimeout(timer.current);
@@ -168,7 +168,7 @@ export default function AdminPage() {
         <div>
           <span className="live"><i /> Live</span>
           <h1>Front door activity</h1>
-          <p>Refreshes every 30 seconds from your reader.</p>
+          <p>Refreshes every 3 seconds from your reader.</p>
         </div>
 
         <div className="ring" style={{ "--pct": rate } as CSSProperties}>
