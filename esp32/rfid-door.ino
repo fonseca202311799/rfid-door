@@ -287,6 +287,8 @@ void loop() {
   lastScanAt = millis();
   const String uid = currentUid();
   printUID();
+  rfid.PICC_HaltA();
+  rfid.PCD_StopCrypto1();
 
   if (isAuthorizedCard()) {
     Serial.println("ACCESS GRANTED!");
@@ -313,7 +315,5 @@ void loop() {
     sendAccessEvent(false, uid);
   }
 
-  rfid.PICC_HaltA();
-  rfid.PCD_StopCrypto1();
 }
 
