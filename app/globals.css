@@ -268,6 +268,17 @@ input:focus-visible {
 
 /* ---------- Panels ---------- */
 .dashboard-grid { display: grid; grid-template-columns: 1fr 1.3fr; gap: 20px; align-items: start; }
+.overview-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 20px; }
+.status-card { display: grid; gap: 8px; }
+.status-card .panel-heading { margin-bottom: 4px; }
+.status-value { color: var(--forest); font-size: 19px; }
+.analytics { margin-bottom: 20px; }
+.analytics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.analytics-grid > div { display: grid; gap: 2px; padding: 10px 0; }
+.analytics-grid strong { color: var(--forest); font-size: 24px; }
+.filters { display: grid; grid-template-columns: 1.6fr repeat(2, 1fr); gap: 10px; margin-bottom: 12px; }
+.filters input { width: 100%; background: var(--cream); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 9px 11px; }
+.filters label { gap: 4px; color: var(--muted); font-size: 11px; }
 
 .card {
   background: var(--surface);
@@ -388,6 +399,8 @@ form input:focus {
   .ring { width: 124px; height: 124px; }
   .metrics { grid-template-columns: repeat(2, 1fr); }
   .dashboard-grid { grid-template-columns: 1fr; }
+  .overview-grid, .analytics-grid { grid-template-columns: 1fr 1fr; }
+  .filters { grid-template-columns: 1fr; }
   .header .brand-name span { display: none; }
 }
 

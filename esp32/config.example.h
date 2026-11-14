@@ -5,6 +5,7 @@
 
 // Use host.wokwi.internal for Wokwi or your computer's LAN IP for a physical ESP32.
 #define ACCESS_EVENTS_API_URL "http://host.wokwi.internal:3000/api/access-events"
+#define DEVICE_STATUS_API_URL "http://host.wokwi.internal:3000/api/device-status"
 
 // This must exactly match ESP32_API_KEY in the Next.js environment file.
 #define ESP32_API_KEY "PASTE_YOUR_ESP32_API_KEY_HERE"

@@ -4,6 +4,16 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { getFirebaseFirestore } from "../../../lib/firebase-admin";
 
 const collectionName = () => process.env.FIRESTORE_ACCESS_EVENTS_COLLECTION || "accessEvents";
+const cacheDurationMs = 15_000;
+let cachedEvents: Array<{
+  id: string;
+  uid: unknown;
+  granted: unknown;
+  deviceId: unknown;
+  reason: unknown;
+  timestamp: string | null;
+}> | null = null;
+let cachedAt = 0;
 
 function hasValidApiKey(request: Request): boolean {
   const expected = process.env.ESP32_API_KEY;
@@ -18,6 +28,10 @@ function hasValidApiKey(request: Request): boolean {
 }
 
 export async function GET() {
+  if (cachedEvents && Date.now() - cachedAt < cacheDurationMs) {
+    return NextResponse.json({ events: cachedEvents });
+  }
+
   try {
     const snapshot = await getFirebaseFirestore()
       .collection(collectionName())
@@ -41,6 +55,8 @@ export async function GET() {
       };
     });
 
+    cachedEvents = events;
+    cachedAt = Date.now();
     return NextResponse.json({ events });
   } catch (error) {
     console.error("Unable to read access events from Firestore.", error);

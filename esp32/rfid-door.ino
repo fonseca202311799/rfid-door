@@ -43,6 +43,7 @@ const byte AUTHORIZED_UID_SIZE = sizeof(AUTHORIZED_UID);
 const int LOCKED_ANGLE = 0;
 const int UNLOCKED_ANGLE = 90;
 const unsigned long UNLOCK_TIME_MS = 4000;
+const unsigned long STATUS_INTERVAL_MS = 30000;
 
 MFRC522 rfid(RFID_SS, RFID_RST);
 Servo doorServo;
@@ -50,6 +51,7 @@ Servo doorServo;
 bool doorIsOpen = false;
 unsigned long doorOpenedAt = 0;
 unsigned long lastScanAt = 0;
+unsigned long lastStatusAt = 0;
 
 void setStatus(bool authorized) {
   digitalWrite(GREEN_LED, authorized ? HIGH : LOW);
@@ -175,6 +177,43 @@ void sendAccessEvent(bool granted, const String& uid) {
   http.end();
 }
 
+void sendDeviceStatus() {
+  connectToWiFi();
+
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("Device status not sent: Wi-Fi is disconnected.");
+    return;
+  }
+
+  WiFiClientSecure client;
+  client.setInsecure();
+  HTTPClient http;
+
+  if (!http.begin(client, DEVICE_STATUS_API_URL)) {
+    Serial.println("Device status not sent: invalid API URL.");
+    return;
+  }
+
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("x-device-api-key", ESP32_API_KEY);
+  http.setTimeout(3000);
+
+  String payload = "{\"deviceId\":\"";
+  payload += DEVICE_ID;
+  payload += "\",\"doorOpen\":";
+  payload += (doorIsOpen ? "true" : "false");
+  payload += ",\"wifiRssi\":";
+  payload += String(WiFi.RSSI());
+  payload += ",\"ipAddress\":\"";
+  payload += WiFi.localIP().toString();
+  payload += "\"}";
+
+  const int responseCode = http.POST(payload);
+  Serial.print("Device status response code: ");
+  Serial.println(responseCode);
+  http.end();
+}
+
 void setup() {
   Serial.begin(9600);
   delay(2000);
@@ -199,6 +238,8 @@ void setup() {
   rfid.PCD_Init();
 
   connectToWiFi();
+  sendDeviceStatus();
+  lastStatusAt = millis();
 
   Serial.println("RC522 initialized!");
   Serial.println("Authorized device: BLUE KEY FOB");
@@ -208,6 +249,11 @@ void setup() {
 }
 
 void loop() {
+  if (millis() - lastStatusAt >= STATUS_INTERVAL_MS) {
+    lastStatusAt = millis();
+    sendDeviceStatus();
+  }
+
   if (doorIsOpen &&
       millis() - doorOpenedAt >= UNLOCK_TIME_MS) {
     doorServo.write(LOCKED_ANGLE);

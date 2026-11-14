@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 
-const STORAGE_KEY = "rfid-door-state";
 const SESSION_KEY = "rfid-admin-session";
 const EXIT_MS = 700;
 type Card = { uid: string; name: string; active: boolean };
@@ -13,6 +12,14 @@ type AccessEvent = {
   uid: string;
   granted: boolean;
   timestamp: string | null;
+};
+type DeviceStatus = {
+  deviceId: string;
+  doorOpen: boolean;
+  wifiRssi: number | null;
+  ipAddress: string | null;
+  lastSeen: string | null;
+  online: boolean;
 };
 const seedCards: Card[] = [
   { uid: "2C:D2:16:49", name: "Blue key fob", active: true },
@@ -30,12 +37,15 @@ export default function AdminPage() {
   const [confirming, setConfirming] = useState(false); // 🆕
   const [cards, setCards] = useState<Card[]>(seedCards);
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [deviceStatus, setDeviceStatus] = useState<DeviceStatus | null>(null);
+  const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [syncError, setSyncError] = useState("");
   const timer = useRef<number>(0);
 
   const sync = async () => {
     try {
-      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
       setCards(seedCards);
 
       const response = await fetch("/api/access-events", { cache: "no-store" });
@@ -57,6 +67,16 @@ export default function AdminPage() {
       console.warn("Unable to refresh dashboard state.", error);
       setSyncError("Unable to load Firestore access events.");
     }
+
+    try {
+      const response = await fetch("/api/device-status", { cache: "no-store" });
+      if (!response.ok) throw new Error(`Device status request failed (${response.status}).`);
+      const data = await response.json() as { status?: DeviceStatus | null };
+      setDeviceStatus(data.status ?? null);
+    } catch (error) {
+      console.warn("Unable to refresh device status.", error);
+      setDeviceStatus(null);
+    }
   };
 
   useEffect(() => {
@@ -66,7 +86,7 @@ export default function AdminPage() {
     }
     void sync();
     setReady(true);
-    const interval = window.setInterval(() => void sync(), 2000);
+    const interval = window.setInterval(() => void sync(), 30000);
     return () => {
       window.clearInterval(interval);
       window.clearTimeout(timer.current);
@@ -87,6 +107,30 @@ export default function AdminPage() {
   const denied = logs.length - granted;
   const rate = logs.length ? Math.round((granted / logs.length) * 100) : 0;
   const activeCards = cards.filter((card) => card.active).length;
+  const filteredLogs = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const from = dateFrom ? new Date(`${dateFrom}T00:00:00`) : null;
+    const to = dateTo ? new Date(`${dateTo}T23:59:59.999`) : null;
+    return logs.filter((entry) => {
+      const matchesSearch = !query ||
+        entry.uid.toLowerCase().includes(query) ||
+        entry.who.toLowerCase().includes(query);
+      const matchesFrom = !from || entry.time >= from;
+      const matchesTo = !to || entry.time <= to;
+      return matchesSearch && matchesFrom && matchesTo;
+    });
+  }, [dateFrom, dateTo, logs, search]);
+  const filteredGranted = filteredLogs.filter((entry) => entry.granted).length;
+  const filteredRate = filteredLogs.length ? Math.round((filteredGranted / filteredLogs.length) * 100) : 0;
+  const todayScans = logs.filter((entry) => entry.time.toDateString() === new Date().toDateString()).length;
+  const weekScans = logs.filter((entry) => Date.now() - entry.time.getTime() <= 7 * 24 * 60 * 60 * 1000).length;
+  const peakHour = logs.length
+    ? Object.entries(logs.reduce<Record<string, number>>((hours, entry) => {
+      const hour = entry.time.getHours().toString().padStart(2, "0");
+      hours[hour] = (hours[hour] || 0) + 1;
+      return hours;
+    }, {})).sort(([, a], [, b]) => b - a)[0]?.[0]
+    : null;
 
   const logout = () => {
     if (leaving) return;
@@ -124,7 +168,7 @@ export default function AdminPage() {
         <div>
           <span className="live"><i /> Live</span>
           <h1>Front door activity</h1>
-          <p>Refreshes every 2 seconds from your reader.</p>
+          <p>Refreshes every 30 seconds from your reader.</p>
         </div>
 
         <div className="ring" style={{ "--pct": rate } as CSSProperties}>
@@ -139,6 +183,52 @@ export default function AdminPage() {
           <article className="metric ad-in" style={step(4)}><span className="muted">Access granted</span><strong className="success">{granted}</strong></article>
           <article className="metric ad-in" style={step(5)}><span className="muted">Access denied</span><strong className="error">{denied}</strong></article>
           <article className="metric ad-in" style={step(6)}><span className="muted">Active cards</span><strong>{activeCards}</strong></article>
+        </div>
+      </section>
+
+      <section className="overview-grid">
+        <article className="card status-card ad-in" style={step(2)}>
+          <div className="panel-heading">
+            <h2>Door status</h2>
+            <span className={deviceStatus ? (deviceStatus.doorOpen ? "pill ok" : "pill off") : "pill off"}>
+              {!deviceStatus ? "Unknown" : deviceStatus.doorOpen ? "Unlocked" : "Locked"}
+            </span>
+          </div>
+          <strong className="status-value">
+            {!deviceStatus ? "Door status unavailable" : deviceStatus.doorOpen ? "Door is unlocked" : "Door is locked"}
+          </strong>
+          <p className="muted">
+            {deviceStatus?.lastSeen
+              ? `Last updated ${new Date(deviceStatus.lastSeen).toLocaleTimeString()}`
+              : "Waiting for device heartbeat"}
+          </p>
+        </article>
+        <article className="card status-card ad-in" style={step(2)}>
+          <div className="panel-heading">
+            <h2>Device health</h2>
+            <span className={deviceStatus?.online ? "pill ok" : "pill no"}>
+              {deviceStatus?.online ? "Online" : "Offline"}
+            </span>
+          </div>
+          <strong className="status-value">{deviceStatus?.deviceId ?? "ESP32 door reader"}</strong>
+          <p className="muted">
+            {deviceStatus?.online
+              ? `${deviceStatus.wifiRssi ?? "—"} dBm Wi-Fi · ${deviceStatus.ipAddress ?? "IP unavailable"}`
+              : "No heartbeat received in the last 90 seconds"}
+          </p>
+        </article>
+      </section>
+
+      <section className="card analytics ad-in" style={step(2)}>
+        <div className="panel-heading">
+          <h2>Analytics</h2>
+          <span className="muted">Based on the latest {logs.length} events</span>
+        </div>
+        <div className="analytics-grid">
+          <div><span className="muted">Today</span><strong>{todayScans}</strong></div>
+          <div><span className="muted">Last 7 days</span><strong>{weekScans}</strong></div>
+          <div><span className="muted">Filtered success rate</span><strong className="success">{filteredRate}%</strong></div>
+          <div><span className="muted">Peak hour</span><strong>{peakHour ? `${peakHour}:00` : "—"}</strong></div>
         </div>
       </section>
 
@@ -167,17 +257,33 @@ export default function AdminPage() {
         <section className="card panel ad-in" style={step(8)}>
           <div className="panel-heading">
             <h2>Recent activity</h2>
-            <span className="muted">{logs.length} events</span>
+            <span className="muted">{filteredLogs.length} shown</span>
+          </div>
+          <div className="filters">
+            <input
+              aria-label="Search access events"
+              placeholder="Search UID or card"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+            <label>
+              From
+              <input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
+            </label>
+            <label>
+              To
+              <input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
+            </label>
           </div>
           {syncError && <p className="error">{syncError}</p>}
-          {logs.length === 0 ? (
+          {filteredLogs.length === 0 ? (
             <div className="empty">
-              <strong>No scans yet</strong>
-              <p className="muted">Tap a card on the reader and it will show up here.</p>
+              <strong>{logs.length === 0 ? "No scans yet" : "No matching scans"}</strong>
+              <p className="muted">{logs.length === 0 ? "Tap a card on the reader and it will show up here." : "Try changing the search or date filters."}</p>
             </div>
           ) : (
             <ul className="log">
-              {logs.slice(0, 100).map((entry) => (
+              {filteredLogs.slice(0, 100).map((entry) => (
                 <li key={entry.id} className={`${entry.granted ? "granted" : "denied"} ad-row`}>
                   <div className="who">
                     <div>
