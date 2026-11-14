@@ -4,7 +4,7 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { getFirebaseFirestore } from "../../../lib/firebase-admin";
 
 const collectionName = () => process.env.FIRESTORE_ACCESS_EVENTS_COLLECTION || "accessEvents";
-const cacheDurationMs = 15_000;
+const cacheDurationMs = 3_000;
 let cachedEvents: Array<{
   id: string;
   uid: unknown;
@@ -104,6 +104,8 @@ export async function POST(request: Request) {
       timestamp: FieldValue.serverTimestamp(),
     });
 
+    cachedEvents = null;
+    cachedAt = 0;
     return NextResponse.json({ id: document.id }, { status: 201 });
   } catch (error) {
     console.error("Unable to write access event to Firestore.", error);
