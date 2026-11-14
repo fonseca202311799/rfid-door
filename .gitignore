@@ -5,3 +5,4 @@ node_modules/
 esp32/config.h
 *firebase-adminsdk*.json
 tsconfig.tsbuildinfo
+rfid-door-service-account.json
