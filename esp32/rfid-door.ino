@@ -240,12 +240,12 @@ void loop() {
     Serial.println("Door unlocked.");
 
     setStatus(true);
-    beep(1800, 120);
-    Serial.println("Sending authorized access event...");
-    sendAccessEvent(true, uid);
     doorServo.write(UNLOCKED_ANGLE);
     doorIsOpen = true;
     doorOpenedAt = millis();
+    beep(1800, 120);
+    Serial.println("Sending authorized access event...");
+    sendAccessEvent(true, uid);
   } else {
     Serial.println("ACCESS DENIED!");
     Serial.println("Unauthorized RFID device.");
